@@ -15,14 +15,27 @@
             margin-top: 20px;
         }
         #prize-list {
-            margin: 20px 0;
+            margin: 20px auto;
+            width: 60%;
+            max-height: 200px;
+            overflow-y: auto;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            border: 1px solid #ccc;
+            padding: 10px;
         }
         #prize-list ul {
             list-style-type: none;
             padding: 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
         }
         #prize-list li {
-            margin: 5px 0;
+            padding: 5px;
+            background: #f0f0f0;
+            border-radius: 5px;
         }
         #message {
             margin: 20px 0;
@@ -60,16 +73,14 @@
     </div>
 
     <div id="prize-display">
-        <!--  当選景品の情報を表示 -->
-        <img id="current-prize" src="" alt="Current Prize">
         <div id="prize-name"></div>
+        <img id="current-prize" src="" alt="Current Prize">
     </div>
 
     <audio id="change-sound" src="sound/beep.mp3"></audio>
     <audio id="win-sound" src="sound/win.mp3"></audio>
 
     <script>
-        // 変数設定
         const prizeFolder = 'prize';
         const unselectedList = document.getElementById('unselected-list');
         const currentPrize = document.getElementById('current-prize');
@@ -77,8 +88,8 @@
         const changeSound = document.getElementById('change-sound');
         const winSound = document.getElementById('win-sound');
         const message = document.getElementById('message');
+        let isDrawing = false;
 
-        // 手動で景品ファイル名をリスト化
         const prizeImages = [
             'special_MacBook.jpg',
             'キーボード.jpg',
@@ -86,75 +97,55 @@
             'マウス.jpg'
         ];
 
-        // 特別景品判定
-        const specialPrizes = prizeImages.filter(image => image.includes('special'));
-        const regularPrizes = prizeImages.filter(image => !image.includes('special'));
+        let allPrizes = [...prizeImages];
 
-        let isCtrlKeyPressed = false;
-
-        // リストをHTMLに反映
-        prizeImages.forEach(image => {
-            const name = image.replace(/\.\w+$/, ''); // 拡張子を非表示
+        allPrizes.forEach(image => {
             const listItem = document.createElement('li');
-            listItem.textContent = name;
+            listItem.textContent = image.replace(/special_/, '').replace(/\.\w+$/, '');
             unselectedList.appendChild(listItem);
         });
 
-        // Enterキーで抽選開始
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Control') {
-                isCtrlKeyPressed = true;
-            }
-        });
-
-        // Controlキーが押されていたら・・・
-        document.addEventListener('keyup', (e) => {
-            if (e.key === 'Control') {
-                isCtrlKeyPressed = false;
-            }
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && !isDrawing) {
+                isDrawing = true;
                 startDrawing();
             }
         });
 
         function startDrawing() {
+            let candidates = [...allPrizes];
+            let totalDuration = 10000;
+            let frameRate = 60;
+            let totalFrames = frameRate * (totalDuration / 1000);
+            let acceleration = 3;
+            let currentFrame = 0;
 
-            // 景品が全て当選
-            if (regularPrizes.length === 0 && specialPrizes.length === 0) {
-                message.textContent = 'すべての景品が当選済みです！';
-                return;
+            function getInterval(frame) {
+                let progress = frame / totalFrames;
+                if (progress < 0.3) return 1000;
+                if (progress < 0.7) return 333;
+                return 2000;
             }
 
-            // 秘密の設定・・・
-            const allPrizes = [...prizeImages]; // 全ての景品を表示対象に
-            let candidates = isCtrlKeyPressed ? regularPrizes : [...regularPrizes, ...specialPrizes];
-            if (candidates.length === 0) {
-                candidates = specialPrizes;
-            }
-
-            let interval = 200; // 初期速度を少し遅く設定
-            let count = 0;
-            const maxCount = 50; // 約10秒間抽選
-
-            const timer = setInterval(() => {
-                if (count >= maxCount) {
-                    clearInterval(timer);
+            function drawFrame() {
+                if (currentFrame >= totalFrames) {
                     finalizePrize(candidates);
+                    isDrawing = false;
                     return;
                 }
-
-                const randomIndex = Math.floor(Math.random() * allPrizes.length); // 全景品から選択
-                const prize = allPrizes[randomIndex];
+                
+                const randomIndex = Math.floor(Math.random() * candidates.length);
+                const prize = candidates[randomIndex];
                 currentPrize.src = `${prizeFolder}/${prize}`;
                 currentPrize.style.display = 'block';
-
-                const name = prize.replace(/\.\w+$/, '');
-                prizeNameDisplay.textContent = name;
-
+                prizeNameDisplay.textContent = prize.replace(/special_/, '').replace(/\.\w+$/, '');
                 changeSound.play();
+                
+                currentFrame++;
+                setTimeout(drawFrame, getInterval(currentFrame));
+            }
 
-                count++;
-            }, interval);
+            drawFrame();
         }
 
         function finalizePrize(candidates) {
@@ -163,28 +154,15 @@
 
             currentPrize.src = `${prizeFolder}/${selectedPrize}`;
             currentPrize.style.display = 'block';
-
-            const name = selectedPrize.replace(/\.\w+$/, '');
-            prizeNameDisplay.textContent = name;
-
+            prizeNameDisplay.textContent = selectedPrize.replace(/special_/, '').replace(/\.\w+$/, '');
             winSound.play();
 
             removePrizeFromList(selectedPrize);
         }
 
         function removePrizeFromList(prize) {
-            const indexInRegular = regularPrizes.indexOf(prize);
-            const indexInSpecial = specialPrizes.indexOf(prize);
-
-            if (indexInRegular !== -1) {
-                regularPrizes.splice(indexInRegular, 1);
-            }
-
-            if (indexInSpecial !== -1) {
-                specialPrizes.splice(indexInSpecial, 1);
-            }
-
-            const name = prize.replace(/\.\w+$/, '');
+            allPrizes = allPrizes.filter(item => item !== prize);
+            const name = prize.replace(/special_/, '').replace(/\.\w+$/, '');
             const listItem = [...unselectedList.children].find(li => li.textContent === name);
             if (listItem) {
                 unselectedList.removeChild(listItem);
